@@ -1,0 +1,315 @@
+\section{Описание практической части}
+\label{sec:Chapter4} \index{Chapter4}
+
+Раздел документирует программную реализацию решения, разработанного
+в разделе~\ref{sec:Chapter3}, и приводит результаты экспериментов.
+Все исходные коды, скрипты и сырые материалы замеров размещены в
+репозитории работы~\cite{thesisRepo}.
+
+\subsection{Архитектура реализации}
+
+Реализация локализована в семпле \texttt{testGI} движка
+DagorEngine~\cite{dagorEngine} и состоит из двух частей:
+
+\paragraph{(A) Алгоритмическая часть.} Код алгоритма вынесен в
+namespace \texttt{testgi\_\-dynrend\_\-bvh\_\-pre}. Он расположен в файле
+\texttt{samples/\-testGI/\-prog/\-test\_app.cpp} (около 600 строк
+C++17). Реализация включает чтение треугольников из исходных
+\texttt{ShaderMesh::RElem}, глобальная Morton-сортировка по
+центроидам, разбиение на пространственно-плотные кластеры,
+выделение для каждого кластера собственных vertex/index-буферов и
+регистрация их в BVH-подсистеме движка через
+\texttt{bvh::add\_mesh()} и \texttt{bvh::add\_instance()}.
+
+\paragraph{(B) Конфигурационная часть.} Опция
+\texttt{bvhMergeAllRelems} в файле
+\texttt{samples/\-testGI/\-game/\-settings.blk} -- единственный
+пользовательский управляющий параметр. Целочисленное значение
+задаёт минимальное желаемое число пространственных кластеров на
+модель; нулевое или отрицательное значение отключает метод и
+возвращает поведение к baseline.
+
+\subsection{Реализация алгоритмического модуля}
+
+\subsubsection{Ключевые структуры данных}
+
+\begin{verbatim}
+struct SubMesh {
+    uint32_t triStart;     // начало в Morton-отсортированном пуле
+    uint32_t triCount;     // число треугольников в кластере
+    BSphere3 bsphere;      // тугая bounding-сфера кластера
+};
+
+struct MergedResourceState {
+    uint32_t       clusterCount;  // итоговое число кластеров K
+    Tab<Sbuffer*>  vbs;           // K выделенных vertex-буферов
+    Tab<Sbuffer*>  ibs;           // K выделенных 16-bit index-буферов
+};
+
+struct ClusterRegistry {
+    WinCritSec cs;
+    eastl::vector_map<uint64_t, MergedResourceState> merged;
+};
+\end{verbatim}
+
+\texttt{ClusterRegistry} живёт как singleton и хранит состояние
+для каждой обработанной модели, ключ -- \texttt{bvh\_id} ресурса.
+Под критической секцией обеспечивается потокобезопасность доступа
+из BVH-обновлений.
+
+\subsubsection{Основные функции}
+
+\begin{itemize}
+\item \texttt{gather\_\-relem\_\-triangles()} читает позиции
+  треугольников одного \texttt{RElem}-а в локальный массив.
+  Поддерживает формат вершин \texttt{VSDT\_FLOAT3} и 16-битные
+  индексы; пропускает RElem-ы с неподдерживаемым форматом,
+  логируя предупреждение.
+\item \texttt{try\_\-register\_\-merged\_\-resource()} -- основная
+  функция метода. Она обходит все \texttt{RElem}-ы модели,
+  собирает глобальный пул треугольников, выполняет Morton-сортировку,
+  согласует число кластеров $K$ с лимитом 16-битного индекса,
+  выделяет под каждый кластер дедицированные vertex/index-буферы и
+  регистрирует их в BVH через \texttt{bvh::add\_mesh()}.
+\item \texttt{make\_\-merged\_\-cluster\_\-mesh\_\-id()} кодирует
+  пару \texttt{(bvh\_id, cluster\_ix)} в уникальный 64-битный
+  \texttt{mesh\_id}, используя старший бит как флаг
+  «merge-режим» для отличения от обычных \texttt{mesh\_id}.
+\item \texttt{add\_\-dynrend\_\-resource\_\-to\_\-bvh()} -- модифицированная
+  точка входа. Сначала она вызывает
+  \texttt{try\_\-register\_\-merged\_\-resource()}; если возвращено $K\!>\!0$,
+  стандартный per-\texttt{RElem} путь регистрации пропускается.
+\item \texttt{add\_\-dynrend\_\-instance\_\-to\_\-bvh()} -- модифицированный
+  обработчик инстансов. Если запись для ресурса уже есть, он
+  порождает $K$ инстансов с общей трансформацией; иначе используется
+  стандартный per-\texttt{RElem} путь.
+\end{itemize}
+
+\subsubsection{Аппаратные требования к буферам}
+
+Index-буферы кластеров создаются с явным набором флагов:
+\begin{verbatim}
+const uint32_t ibFlags = SBCF_BIND_INDEX
+                       | SBCF_BIND_SHADER_RES
+                       | SBCF_MISC_ALLOW_RAW;
+Sbuffer *ib = d3d::create_ib(ibSize, ibFlags, "bvh_merged_ib");
+\end{verbatim}
+
+Флаги \texttt{SBCF\_BIND\_SHADER\_RES} и
+\texttt{SBCF\_MISC\_ALLOW\_RAW} необходимы для того, чтобы
+compute-шейдер \texttt{BVH::\-Index\-Processor} в Dagor мог
+использовать буфер индексов как Shader~Resource~View. Без них
+runtime срабатывает с \texttt{G\_ASSERT} в самом начале
+BVH-постройки. Это требование выяснено эмпирически по дампам
+крэшей.
+
+\subsubsection{Согласование $K$ с лимитом 16-битного индекса}
+
+Реализация автоматически поднимает запрошенное $K_{\text{req}}$
+до минимально допустимого:
+\begin{verbatim}
+const uint32_t kMaxTrisPerCluster = (65535u / 3u);  // = 21845
+const uint32_t Kmin = (N + kMaxTrisPerCluster - 1)
+                      / kMaxTrisPerCluster;
+const uint32_t K    = max<uint32_t>(K_req, Kmin);
+\end{verbatim}
+
+Для целевой модели \href{https://sketchfab.com/3d-models/house-ko-bulon-don-urak-lawoi-village-thailand-bc53e24d35a9439cac420cf530e7de3f}{\texttt{House, Ko Bulon Don Urak Lawoi Village, Thailand}} ($N \approx 1{,}22 \cdot 10^6$
+треугольников) при запросе \texttt{bvhMergeAllRelems:i = 16}
+эффективное $K\!=\!56$ -- именно столько кластеров и
+регистрируется. Логирование при инициализации фиксирует эти
+числа.
+
+\subsection{Конфигурация семпла}
+
+В файл \texttt{samples/\-testGI/\-game/\-settings.blk} добавлена секция:
+\begin{verbatim}
+graphics {
+  // ... штатные настройки ...
+  bvhMergeAllRelems:i = 16   // K_req: 0 -- отключено
+}
+\end{verbatim}
+
+Опция читается при инициализации BVH-контекста и не требует
+перезапуска приложения при изменении (механизм автоматического
+\texttt{request\_full\_rebuild()} \-- штатная инфраструктура
+Dagor, идентичная путь смене RT-preset).
+
+\subsection{Тестовый стенд}
+
+\subsubsection{Сцена}
+
+Сцена представляет собой $4\!\times\!4$ сетку из $N\!=\!16$
+инстансов модели \href{https://sketchfab.com/3d-models/house-ko-bulon-don-urak-lawoi-village-thailand-bc53e24d35a9439cac420cf530e7de3f}{\texttt{House, Ko Bulon Don Urak Lawoi Village, Thailand}} с шагом 15~м. Между моделями
+оставлены проходы для имитации улицы; источник света -- одно
+направленное солнце под наклоном $45^\circ$.
+
+\subsubsection{Тестовая модель \href{https://sketchfab.com/3d-models/house-ko-bulon-don-urak-lawoi-village-thailand-bc53e24d35a9439cac420cf530e7de3f}{\texttt{House, Ko Bulon Don Urak Lawoi Village, Thailand}}}
+
+Модель создана автором специально как «плохой пример» для
+исследования: жилой дом из $\sim 1{,}2$ млн треугольников,
+организованный в $\sim 10$ материальных \texttt{RElem}-ов так,
+что каждый \texttt{RElem} пространственно охватывает почти весь
+объём модели. Эта структура воспроизводит наблюдаемый
+на практике эффект «$\sim 10$ BLAS-братьев, каждый с AABB
+размером со всю модель».
+
+Подготовка \texttt{.dag}-файла модели выполнена через плагин
+\texttt{dag4blend}~\cite{dag4blend} для Blender; импортированная
+модель добавлена как rendInst в сценарий \texttt{testGI}.
+
+\subsubsection{Условия замера}
+
+\begin{description}[leftmargin=1.3cm,style=nextline]
+\item[Платформа] Windows~11~x64, DirectX~12, GPU
+  GeForce RTX-класса.
+\item[Семпл] \texttt{testGI} из репозитория DagorEngine, сборка
+  через штатный \texttt{jam}-скрипт.
+\item[Конфигурация] \texttt{enableBVH=yes}, RTSM включён для
+  солнечного источника, остальные RT-эффекты выключены.
+\item[Камера] зафиксирована в одной позиции, обзор сетки
+  инстансов под углом сверху-сбоку.
+\item[Замер] среднее GPU-время GPU-маркера
+  \texttt{rtsm::do\_trace} за 100 кадров после установления
+  тёплого состояния денойзера.
+\item[Что не входит в замер] время сборки BVH
+  (\texttt{bvh::build}) и обновления TLAS -- эти операции
+  происходят однократно при загрузке сцены и не влияют на
+  per-frame стоимость.
+\end{description}
+
+\subsection{Результаты}
+
+\subsubsection{Главный замер: время трассировки теней}
+
+\begin{table}[h!]
+\centering
+\caption{Время \texttt{rtsm::do\_trace} до и после применения метода глобальной пространственной кластеризации}
+\label{tab:rtsm_runtime}
+\small
+\begin{tabular}{lrr}
+\hline
+\textbf{Конфигурация} & \textbf{\texttt{rtsm::do\_trace}, мс} & \textbf{Ускорение} \\
+\hline
+baseline (\texttt{bvhMergeAllRelems:i = 0})   & 8{,}0 & $\times 1{,}0$ \\
+Пространственная кластеризация, $K_{\text{req}}\!=\!16$    & 1{,}0 & $\mathbf{\times 8{,}0}$ \\
+\hline
+\end{tabular}
+\end{table}
+
+Метод даёт восьмикратное ускорение основного прохода
+GPU-трассировки теней при том же качестве изображения и без
+изменения ассет-пайплайна. Эффективное число BLAS-кластеров на
+одну модель -- $K\!=\!56$, что превышает запрошенное 16 за счёт
+автоматической корректировки под лимит 16-битного индекса.
+
+\subsubsection{Качественная картина Acceleration Structure}
+
+На рисунках~\ref{fig:dagor_with}--\ref{fig:dagor_without}
+приведены захваты Acceleration~Structure из Nsight~Graphics
+(режим \texttt{Color By: Instance}, каждый цвет -- отдельный
+BLAS-инстанс).
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.95\textwidth]{no_optimized.png}
+\caption{Baseline: \texttt{bvhMergeAllRelems:i = 0}. Режим
+визуализации \texttt{Color By: Instance}. Наблюдается «шумовая»
+картина из перекрывающихся BLAS-инстансов: на любой точке экрана
+проецируется множество разных BLAS, что отражает
+большой разброс AABB и низкую пространственную локализацию.
+Медианное \texttt{rtsm::do\_trace} = 8{,}0~мс.}
+\label{fig:dagor_with}
+\end{figure}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.95\textwidth]{with_optimization.png}
+\caption{После применения метода: \texttt{bvhMergeAllRelems:i = 16}.
+Та же сцена, тот же режим визуализации. Вместо шума отчётливо
+видны крупные сплошные цветные пятна на крышах, стенах и земле --
+каждый цвет соответствует одному пространственно-плотному
+BLAS-кластеру. В каждом пикселе конкурируют 1--2 BLAS вместо
+десятков. Медианное \texttt{rtsm::do\_trace} = 1{,}0~мс
+($\times 8$).}
+\label{fig:dagor_without}
+\end{figure}
+
+Визуальное сравнение подтверждает, что 8-кратное ускорение
+обусловлено именно увеличением пространственной локальности
+BLAS-инстансов, а не каким-либо побочным эффектом подсистемы
+RTSM.
+
+\subsection{Обсуждение}
+
+\subsubsection{Интерпретация ускорения}
+
+8-кратное ускорение объясняется естественным образом через
+SAH-стоимость TLAS (раздел~\ref{sec:Chapter0}, формула~$(1)$). В
+baseline-конфигурации исходный крупный ассет \href{https://sketchfab.com/3d-models/house-ko-bulon-don-urak-lawoi-village-thailand-bc53e24d35a9439cac420cf530e7de3f}{\texttt{House, Ko Bulon Don Urak Lawoi Village, Thailand}} разделён на $\sim 10$ \texttt{RElem}-ов (материальных групп). Поскольку треугольники каждого материала разбросаны по всей площади дома, каждый из них образует отдельный BLAS с AABB размером со всю модель.
+При размещении 16 инстансов в сцене в TLAS попадает $\sim 160$
+BLAS-листьев огромного размера, которые сильно перекрывают друг друга.
+При трассировке любой луч вынужден проверять пересечение с
+подавляющим большинством этих BLAS-кандидатов, и доля «полезной работы»
+(собственно ray-triangle test) оказывается крайне низкой из-за огромного числа ложных пересечений с AABB.
+
+После применения метода огромный ассет разделяется на $56$ пространственно-компактных кластеров (мини-ассетов). В TLAS для всей сцены присутствует $16 \times 56 = 896$
+BLAS, но каждый из них имеет очень маленький AABB, не перекрывающийся с соседями.
+Алгоритм обхода TLAS быстро отбрасывает нерелевантные ветви уже на верхних уровнях дерева.
+Несмотря на рост общего числа BLAS-инстансов, отсутствие перекрытий между ними радикально снижает количество узлов, которые вынужден посетить луч.
+
+\subsubsection{Соответствие критериям приёмки}
+
+\begin{itemize}
+    \item Метод реализован как опциональный режим в
+      \texttt{testGI}, включаемый одной строкой
+      \texttt{settings.blk}. \textbf{Выполнено.}
+    \item Зафиксировано ускорение в 8 раз (8{,}0~мс
+      $\to$ 1{,}0~мс), что заметно превышает критерий
+      ($\ge 2\times$). \textbf{Выполнено.}
+    \item Визуальная картина Acceleration~Structure
+      демонстрирует пространственно-связные области вместо
+      шума перекрытий. \textbf{Выполнено.}
+    \item Картинка теней визуально неотличима от baseline:
+      множество треугольников сохранено, тени отбрасываются
+      теми же поверхностями. \textbf{Выполнено по построению.}
+\end{itemize}
+
+\subsubsection{Цена ускорения}
+
+Метод увеличивает число BLAS-инстансов на одну модель с
+$R \approx 10$ (исходные \texttt{RElem}-ы) до $K\!=\!56$
+(кластеров). Дополнительный объём памяти на vertex/index-буферы
+кластеров составляет $\sim 30\,\text{Mb}$ для всей сцены из 16
+инстансов; объём BLAS-узлов растёт пропорционально числу
+BLAS-инстансов. Время одноразовой инициализации
+(\texttt{bvh::build}) увеличивается на десятки миллисекунд за
+счёт большего числа BLAS-построек, но per-frame стоимость
+\texttt{rtsm::do\_trace} падает в 8 раз -- что и является
+целью.
+
+\subsubsection{Ограничения текущей реализации}
+
+\begin{enumerate}
+    \item Метод теряет per-triangle материальную атрибуцию: все
+      треугольники модели после объединения трактуются как
+      один ассет. Для RTSM, где hit-shader не нужен,
+      это приемлемо. Для проходов GI/отражений, использующих
+      hit-shader (например, для определения emissive-поверхностей),
+      необходима доработка: хранить для каждого кластера таблицу
+      соответствия «локальный номер треугольника $\to$ материал»
+      и обращаться к ней в hit-shader.
+    \item Алгоритм работает только с основным уровнем детализации модели.
+      Для других уровней используется стандартный
+      per-\texttt{RElem} путь; это приемлемо, поскольку RTSM
+      обычно использует BLAS только этого уровня.
+    \item Параметр $K_{\text{req}}$ задаётся вручную. Для
+      других моделей оптимальное значение может отличаться;
+      автоматический подбор по характеристикам модели
+      (диагональ AABB, число треугольников) -- предмет
+      дальнейшей работы.
+    \item Метод не предназначен для skinning/blend~shapes:
+      вершины таких ассетов меняются каждый кадр, и стоимость
+      повторной Morton-сортировки и пересборки BLAS-ов
+      превысит выигрыш от трассировки.
+\end{enumerate}

@@ -1,0 +1,60 @@
+\begin{abstract}
+
+    \begin{center}
+        \large{\input{include/work-title.tex}} \\
+    \large\textit{Мусько Денис Владимирович} \\[1 cm]
+    \end{center}
+
+    Работа посвящена ускорению трассировки лучей в реальном времени за
+    счёт предобработки ассетов перед их подачей в структуру нижнего уровня
+    (BLAS). Основная гипотеза состоит в том, что графический конвейер часто выделяет отдельный меш-ассет (и отдельный BLAS) под каждый уникальный материал (например, дерево или металл). Если элементы такого материала разбросаны по всему объёму крупной модели, то ограничивающий объём (AABB) соответствующего BLAS будет сопоставим с размерами всей модели. В результате в структуре верхнего уровня (TLAS) возникает множество огромных и полностью перекрывающихся инстансов — по одному на каждый материал. При трассировке луча это приводит к необходимости пересекать почти все BLAS сцены, что критически снижает производительность.
+
+    Предложен и реализован метод глобальной пространственной кластеризации ассетов.
+    Треугольники всех материалов крупной модели извлекаются, объединяются в единый массив и
+    сортируются по 63-битному Morton-коду центроида. Затем массив разделяется на $K$
+    пространственно-компактных кластеров (фактически, новых мини-ассетов).
+    Каждый такой кластер регистрируется в TLAS как самостоятельный BLAS с маленьким и
+    плотно прилегающим AABB. Метод применяется во время работы приложения
+    (на этапе инициализации сцены), не требует вмешательства в драйвер графического
+    вендора и гарантирует попиксельную идентичность финального изображения.
+
+    Метод реализован в семпле \texttt{testGI} движка DagorEngine на
+    модели \texttt{House, Ko Bulon Don Urak Lawoi Village, Thailand} ($\sim 1{,}2 \cdot 10^6$ треугольников,
+    16 инстансов). На целевой сцене получено восьмикратное снижение
+    медианного времени трассировки теней \texttt{rtsm::do\_trace}:
+    с $8\,\text{мс}$ до $1\,\text{мс}$ на кадр. Корректность метода
+    подтверждена визуально через сравнение
+    Acceleration-Structure-картин в Nsight Graphics: вместо «шумовой»
+    картины перекрывающихся огромных BLAS-инстансов наблюдаются мелкие
+    пространственно-связные цветные области, соответствующие
+    локализованным неперекрывающимся BLAS-кластерам.
+
+    \vfill
+
+    \textbf{Abstract} \\[1 cm]
+
+    This work focuses on accelerating real-time ray tracing by
+    preprocessing mesh geometry before it is submitted to the Bottom-Level
+    Acceleration Structure (BLAS). The central hypothesis is that the graphics pipeline often allocates a separate mesh asset (and thus a separate BLAS) for each unique material (e.g., wood or metal). If the elements of such a material are scattered across a large model, the bounding volume (AABB) of its corresponding BLAS will span the entire model. As a result, the Top-Level Acceleration Structure (TLAS) is populated with multiple enormous and completely overlapping leaf nodes — one for each material. During ray traversal, this forces the intersection of almost all BLASes in the scene, critically degrading performance.
+
+    A method for global spatial geometry clustering is proposed and implemented.
+    The triangles from all materials of a large model are extracted, combined into a single array,
+    and sorted using a 63-bit centroid Morton code. The array is then partitioned
+    into $K$ spatially compact clusters (effectively new mini-assets). Each
+    cluster is registered in the TLAS as an independent BLAS with a small, tightly
+    fitting AABB. The method is applied at runtime during scene initialization,
+    requires no modifications to the vendor driver, and guarantees pixel-perfect
+    visual equivalence of the rendered image.
+
+    The method is implemented in the \texttt{testGI} sample of the
+    DagorEngine on the \texttt{House, Ko Bulon Don Urak Lawoi Village, Thailand} model ($\sim 1.2 \cdot 10^6$
+    triangles, 16 instances). On the target scene the method delivers
+    an eight-fold reduction of the median ray-traced shadow trace time
+    \texttt{rtsm::do\_trace}: from $8\,\text{ms}$ down to
+    $1\,\text{ms}$ per frame. The validity of the method is confirmed
+    visually by comparing the Acceleration-Structure views in Nsight
+    Graphics: instead of a noisy mixture of overlapping huge BLAS instances,
+    small spatially-connected coloured regions corresponding to
+    localised, non-overlapping BLAS clusters become visible.
+
+\end{abstract}
