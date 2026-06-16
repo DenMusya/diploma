@@ -11,16 +11,17 @@
 \input{include/preambule.tex}
 
 \begin{document}
-    %% титульник
-    \input{include/title-page.tex}
-    \newpage
+    %% титульник убран для загрузки в ЛК (ЛК добавляет титул сам)
+    % \input{include/title-page.tex}
+    % \newpage
 
     \setcounter{page}{2}
     \fancyfoot[c]{\thepage}
     %% *надпись над верхним колонтитулом*
     %% в случае ненадобности можно удалить
-    \fancyhead[L]{\input{include/work-title.tex}}
-    \fancyhead[R]{}
+    %% Колонтитул с названием рвёт связность текста в Антиплагиате — оставляем только номер страницы.
+    % \fancyhead[L]{\input{include/work-title.tex}}
+    % \fancyhead[R]{}
 
     %% аннотация
     \input{parts/Annotation.tex}
@@ -32,21 +33,23 @@
 
     % \fontsize{14}{16}\selectfont
     \input{parts/Chapter0.tex} %% Введение
-    \newpage
+    \clearpage
     \input{parts/Chapter1.tex} %% Постановка задачи
-    \newpage
+    \clearpage
     \input{parts/Chapter2.tex} %% Обзор существующих решений
-    \newpage
+    \clearpage
     \input{parts/Chapter3.tex} %% Исследование и построение решения задачи
-    \newpage
+    \clearpage
     \input{parts/Chapter4.tex} %% Описание практической части
-    \newpage
+    \clearpage
     \input{parts/Chapter5.tex} %% Заключение
-    \newpage
+    \clearpage
 
     %% НЕ ТРОГАЙТЕ!!!
     \nocite{*}
+    \sloppy
     \bibliography{references}
+    \fussy
 
     %% в зависимости от надобности подключаем раздел "Приложение"
     % \newpage

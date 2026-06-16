@@ -1,0 +1,42 @@
+\documentclass[border=8pt]{standalone}
+\input{_tikzpre.tex}
+\begin{document}
+\begin{tikzpicture}[font=\small, >=Stealth]
+  % ===== Left panel: baseline =====
+  \node[font=\bfseries, schemeRed] at (2,4.0) {Baseline ($K=0$)};
+  % overlapping big AABBs (drawn first, behind house)
+  \draw[schemeRed,  fill=schemeRed!12]   (0.05,-0.20) rectangle (3.75,3.05);
+  \draw[schemeBlue, fill=schemeBlue!12]  (0.30,-0.05) rectangle (3.95,3.25);
+  \draw[schemeGreen,fill=schemeGreen!12] (-0.05,0.05) rectangle (3.55,3.40);
+  % house outline on top
+  \draw[very thick, schemeGray] (0.5,0) rectangle (3.5,2.2);
+  \draw[very thick, schemeGray] (0.3,2.2) -- (2,3.4) -- (3.7,2.2);
+  \node[align=center, font=\footnotesize] at (2,-1.0)
+    {каждая исходная группа \texttt{RElem}\\$\to$ BLAS с AABB во весь дом};
+  \node[align=center, font=\footnotesize\bfseries, schemeRed] at (2,-2.0)
+    {сильные перекрытия в TLAS\\\texttt{rtsm::do\_trace} $=9{,}15$ мс ($\times1$)};
+
+  % ===== transition arrow =====
+  \draw[->, very thick, schemeGray] (4.4,1.5) -- (6.5,1.5)
+    node[midway, above, font=\footnotesize\itshape]{$\pi$: Morton-split};
+
+  % ===== Right panel: MERGE-ALL =====
+  \begin{scope}[shift={(7,0)}]
+    \node[font=\bfseries, schemeGreen] at (2,4.0) {MERGE-ALL ($K=64$)};
+    % wall cells (compact, distinct colors)
+    \draw[schemeBlue,  fill=schemeBlue!30,  thick] (0.5,0.0) rectangle (1.5,1.1);
+    \draw[schemeOrange,fill=schemeOrange!30, thick] (1.5,0.0) rectangle (2.5,1.1);
+    \draw[schemeGreen, fill=schemeGreen!30,  thick] (2.5,0.0) rectangle (3.5,1.1);
+    \draw[schemeGreen, fill=schemeGreen!30,  thick] (0.5,1.1) rectangle (1.5,2.2);
+    \draw[schemeBlue,  fill=schemeBlue!30,   thick] (1.5,1.1) rectangle (2.5,2.2);
+    \draw[schemeOrange,fill=schemeOrange!30, thick] (2.5,1.1) rectangle (3.5,2.2);
+    % roof cells
+    \draw[schemeOrange,fill=schemeOrange!30, thick] (0.3,2.2) -- (2,3.4) -- (2,2.2) -- cycle;
+    \draw[schemeRed,   fill=schemeRed!22,    thick] (2,3.4) -- (3.7,2.2) -- (2,2.2) -- cycle;
+    \node[align=center, font=\footnotesize] at (2,-1.0)
+      {$K$ компактных кластеров,\\у каждого свой BLAS};
+    \node[align=center, font=\footnotesize\bfseries, schemeGreen] at (2,-2.0)
+      {малые непересекающиеся AABB\\\texttt{rtsm::do\_trace} $=1{,}07$ мс ($\mathbf{\times8{,}6}$)};
+  \end{scope}
+\end{tikzpicture}
+\end{document}

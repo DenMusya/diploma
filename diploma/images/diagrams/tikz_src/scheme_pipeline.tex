@@ -1,0 +1,31 @@
+\documentclass[border=8pt]{standalone}
+\input{_tikzpre.tex}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize, >=Stealth,
+  stage/.style={rounded corners=3pt, draw=schemeBlue, fill=schemeBlueLt, thick,
+    text width=3.2cm, minimum height=1.3cm, align=center, inner sep=4pt},
+  num/.style={circle, draw=schemeBlue, fill=white, thick,
+    font=\bfseries\scriptsize, inner sep=1.3pt}
+]
+  \node[stage] (n1) at (0,1.8)   {Сбор треугольников всех \texttt{RElem}};
+  \node[stage] (n2) at (4.6,1.8) {Глобальный AABB и центроиды $\mathbf{c}_i$};
+  \node[stage] (n3) at (9.2,1.8) {Morton-сортировка по $\mu(\mathbf{c}_i)$};
+  \node[stage] (n4) at (9.2,0)   {Разбиение на $K$ сегментов};
+  \node[stage] (n5) at (4.6,0)   {Свои vertex/index буферы};
+  \node[stage] (n6) at (0,0)     {\texttt{bvh::add\_mesh}\\\texttt{+ add\_instance}};
+
+  \draw[->, very thick, schemeOrange] (n1) -- (n2);
+  \draw[->, very thick, schemeOrange] (n2) -- (n3);
+  \draw[->, very thick, schemeOrange] (n3) -- (n4);
+  \draw[->, very thick, schemeOrange] (n4) -- (n5);
+  \draw[->, very thick, schemeOrange] (n5) -- (n6);
+
+  \foreach \n/\k in {n1/1,n2/2,n3/3,n4/4,n5/5,n6/6}{\node[num] at (\n.north west) {\k};}
+
+  \node[draw=schemeGray, fill=schemeGrayLt, rounded corners, font=\scriptsize,
+    align=center, text width=5.4cm] (ctrl) at (4.6,-1.9)
+    {\textbf{Управление:} строка \texttt{bvhMergeAllRelems} ($K_{\text{req}}$)
+     в \texttt{settings.blk}, \ $K=\max\!\bigl(K_{\text{req}},\lceil N/T_{\max}\rceil\bigr)$};
+  \draw[->, dashed, schemeGray] (ctrl) -- (n4.south);
+\end{tikzpicture}
+\end{document}

@@ -1,32 +1,64 @@
-%% Работа с русским языком
-\usepackage{cmap}			 % поиск в PDF
-\usepackage{mathtext} 		 % русские буквы в формулах
-\usepackage[T2A]{fontenc}	 % кодировка
-\usepackage[utf8]{inputenc}	 % кодировка исходного текста
-\usepackage[russian]{babel}	 % локализация и переносы
+%% Работа с русским языком и шрифтами (XeLaTeX)
+\usepackage{fontspec}
+\defaultfontfeatures{Ligatures=TeX}
+\setmainfont{Times New Roman}[
+  Path=C:/Windows/Fonts/,
+  UprightFont=times.ttf,
+  BoldFont=timesbd.ttf,
+  ItalicFont=timesi.ttf,
+  BoldItalicFont=timesbi.ttf
+]
+\setsansfont{Times New Roman}[
+  Path=C:/Windows/Fonts/,
+  UprightFont=times.ttf,
+  BoldFont=timesbd.ttf,
+  ItalicFont=timesi.ttf,
+  BoldItalicFont=timesbi.ttf
+]
+\setmonofont{Courier New}[
+  Path=C:/Windows/Fonts/,
+  UprightFont=cour.ttf,
+  BoldFont=courbd.ttf,
+  ItalicFont=couri.ttf,
+  BoldItalicFont=courbi.ttf,
+  Scale=MatchLowercase
+]
+\usepackage[russian]{babel}
+\usepackage{microtype}
+\usepackage{xurl}
+\usepackage{fvextra}
+
+% Перенос длинных латинских идентификаторов в русском тексте (XeLaTeX)
+\XeTeXlinebreaklocale "en"
+\XeTeXlinebreakskip = 0pt plus 3pt minus 1pt
+
+\RecustomVerbatimEnvironment{verbatim}{Verbatim}{
+  breaklines=true,
+  breakanywhere=true,
+  breaksymbol={},
+  fontsize=\small
+}
 
 %% Пакеты для работы с математикой
 \usepackage{amsmath,amsfonts,amssymb,amsthm,mathtools}
 \usepackage{icomma}
 
 %% Нумерация формул (опционально)
-%\mathtoolsset{showonlyrefs=true} % показывать номера только у тех формул, на которые есть \eqref{} в тексте.
-%\usepackage{leqno}               % нумерация формул слева
+%\mathtoolsset{showonlyrefs=true}
+%\usepackage{leqno}
 
 %% Шрифты
-\usepackage{euscript}	 % шрифт "Евклид"
-\usepackage{mathrsfs}    % красивый мат. шрифт
+\usepackage{euscript}
+\usepackage{mathrsfs}
 
-%% Некоторые полезные макросы для дебага (в случае недоверия авторам шаблона)
+%% Некоторые полезные макросы для дебага
 \makeatletter
-\newcommand\thefontsize{The current font size is: \f@size pt} % пример: \section{\thefontsize}
+\newcommand\thefontsize{The current font size is: \f@size pt}
 \makeatother
 
 %% Настройка размеров шрифтов
 \makeatletter
 \setlength{\headheight}{28pt}
-%% TODO: мне не удалось разобраться, как грамотно подбирать второе число в
-%% \@setfontsize\*, но ряд экспериментов показывает, что "10" выравнивает текст весьма прилично :)
 \renewcommand\Huge{\@setfontsize\Huge{14pt}{10}}
 \renewcommand\huge{\@setfontsize\huge{14pt}{10}}
 \renewcommand\Large{\@setfontsize\Large{14pt}{10}}
@@ -43,50 +75,126 @@
 \makeatother
 
 %% Работа с картинками
-\usepackage{caption} % пакет для подписей к рисункам, в частности, для работы caption*
-\captionsetup{justification=centering} % центрирование подписей к картинкам
-\usepackage{graphicx}                  % вставки рисунков
-\graphicspath{{images/}{images2/}}     % папки с картинками
-\setlength\fboxsep{3pt}                % отступ рамки \fbox{} от рисунка
-\setlength\fboxrule{1pt}               % толщина линий рамки \fbox{}
-\usepackage{wrapfig}                   % обтекание рисунков и таблиц текстом
+\usepackage{caption}
+\captionsetup{labelsep=endash}
+\captionsetup[figure]{justification=centering}
+\captionsetup[table]{justification=raggedright, singlelinecheck=false}
+\addto\captionsrussian{\renewcommand{\figurename}{Рисунок}}
+\usepackage{graphicx}
+\graphicspath{{images/}{images2/}}
+\setlength\fboxsep{3pt}
+\setlength\fboxrule{1pt}
+\usepackage{wrapfig}
 
 %% Работа с таблицами
-\usepackage{array,tabularx,tabulary,booktabs} % дополнительная работа с таблицами
-\usepackage{longtable}                        % длинные таблицы
-\usepackage{multirow}                         % слияние строк и столбцов в таблице
-\usepackage{makecell}                         % создание ячеек с многими строчками текста
-\usepackage{hhline}                           % позволяет разрывать горизонтальные линии в таблицах
+\usepackage{array,tabularx,tabulary,booktabs}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{hhline}
 
 %% Красная строка
 \setlength{\parindent}{1.25cm}
+\emergencystretch=4em
+\tolerance=4000
+\pretolerance=1000
+\AtBeginDocument{\hbadness=10000}
 
-%% Интервалы
-\linespread{1}
+%% Интервалы (ГОСТ: полуторный межстрочный интервал)
+\usepackage{setspace}
+\onehalfspacing
+
+%% Компактные вертикальные отступы вокруг плавающих объектов, подписей и списков
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\captionsetup{skip=4pt}
+\setlist{topsep=3pt, itemsep=2pt, parsep=0pt}
+
+%% Заголовки
+\usepackage{titlesec}
+\titleformat{\section}[block]
+  {\normalfont\bfseries\fontsize{14pt}{16pt}\selectfont\centering}
+  {\thesection}{1em}{}
+\titleformat{\subsection}[block]
+  {\normalfont\bfseries\fontsize{14pt}{16pt}\selectfont\centering}
+  {\thesubsection}{1em}{}
+\titlespacing*{\section}{0pt}{1.6ex plus .4ex minus .2ex}{1.0ex plus .2ex}
+\titlespacing*{\subsection}{0pt}{1.3ex plus .3ex minus .2ex}{0.8ex plus .2ex}
 
 %% TikZ
 \usepackage{tikz}
 \usetikzlibrary{graphs,graphs.standard}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,shapes.misc,fit,backgrounds,calc}
 
-%% Верхний колонтитул
+%% Цветовая палитра для схем
+\usepackage{xcolor}
+\definecolor{schemeBlue}{HTML}{2C5F8A}
+\definecolor{schemeBlueLt}{HTML}{D6E6F2}
+\definecolor{schemeGreen}{HTML}{2E7D5B}
+\definecolor{schemeGreenLt}{HTML}{D5EFE2}
+\definecolor{schemeOrange}{HTML}{C2611F}
+\definecolor{schemeOrangeLt}{HTML}{FBE3D0}
+\definecolor{schemeGray}{HTML}{4A4A4A}
+\definecolor{schemeGrayLt}{HTML}{ECECEC}
+\definecolor{schemeRed}{HTML}{B23A3A}
+
+%% Верхний и нижний колонтитулы
 \usepackage{fancyhdr}
 \pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}
+}
 
 %% Перенос знаков в формулах (по Львовскому)
 \newcommand*{\hm}[1]{#1\nobreak\discretionary{}{\hbox{$\mathsurround=0pt #1$}}{}}
 
 %% Дополнительно
-\usepackage{float}   % добавляет возможность работы с командой [H] которая улучшает расположение на странице
-\usepackage{gensymb} % красивые градусы
-\usepackage{listings} % пакет для листингов с кодом
-\lstset{              % настройки для лисингов с кодом
+\usepackage{float}
+\usepackage{gensymb}
+\usepackage{listings}
+\let\monospacetext\texttt
+% \texttt переопределён выше (переносы длинных путей и идентификаторов)
+% Переменные текстом (не math-mode): корректный слой PDF для Антиплагиата
+\newcommand{\kreq}{K\_req}
+\newcommand{\kmin}{K\_min}
+\newcommand{\aptimes}[1]{×#1}
+\lstset{
 basicstyle=\small\ttfamily,
 columns=flexible,
 breaklines=true
 }
 
-% Hyperref (для ссылок внутри  pdf)
-\usepackage[unicode, pdftex]{hyperref}
+% Hyperref (для ссылок внутри pdf; hidelinks — меньше шума в текстовом слое)
+\usepackage[hidelinks,unicode]{hyperref}
+\urlstyle{same}
+\def\UrlFont{\normalfont}
+\def\UrlBreaks{\do\/\do-\do\_\do\.\do\ \do\:\do\;\do\=\do\~\do\(\do\)\do\[\do\]}
+
+% Идентификаторы и пути — обычный текст (переносы: XeTeX linebreak + emergencystretch)
+\DeclareRobustCommand{\texttt}[1]{%
+  \ifmmode
+    \text{\normalfont #1}%
+  \else
+    {\normalfont #1}%
+  \fi
+}
+
+% Термин — определение (единый формат, без скачков description)
+\newcommand{\defitem}[2]{%
+  \par\smallskip\noindent\textbf{#1}~---~#2%
+}
 
 % Отступ перед первым абзацем в каждом разделе
 \usepackage{indentfirst}
+
+% Глубина нумерации и оглавления
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{2}

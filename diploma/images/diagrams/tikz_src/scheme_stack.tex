@@ -1,0 +1,24 @@
+\documentclass[border=8pt]{standalone}
+\input{_tikzpre.tex}
+\begin{document}
+\begin{tikzpicture}[font=\small, >=Stealth,
+  layer/.style={rounded corners=2pt, draw=schemeBlue, fill=schemeBlueLt, thick,
+    minimum width=7.2cm, minimum height=0.95cm, align=center},
+  ours/.style={rounded corners=2pt, draw=schemeOrange, fill=schemeOrangeLt, very thick,
+    minimum width=7.2cm, minimum height=0.95cm, align=center}
+]
+  \node[layer, fill=schemeGreenLt, draw=schemeGreen] (l1)
+    {\texttt{rtsm::do\_trace} — трассировка теней};
+  \node[layer, below=3.5mm of l1] (l2)
+    {семпл \texttt{testGI}: сцена, камера, профайлер};
+  \node[ours, below=3.5mm of l2] (l3)
+    {\textbf{предобработка MERGE-ALL} — метод работы};
+  \node[layer, below=3.5mm of l3] (l4)
+    {подсистема \texttt{bvh}: \texttt{add\_mesh / add\_instance}};
+  \node[layer, below=3.5mm of l4, fill=schemeGrayLt, draw=schemeGray] (l5)
+    {DirectX~12 / DXR — драйвер строит BLAS};
+  \foreach \a/\b in {l1/l2,l2/l3,l3/l4,l4/l5}{\draw[<->, thick, schemeGray] (\a) -- (\b);}
+  \node[font=\footnotesize\itshape, schemeGreen, right=5mm of l1] {измеряемая метрика};
+  \node[font=\footnotesize\itshape, schemeOrange, right=5mm of l3] {вклад работы};
+\end{tikzpicture}
+\end{document}
